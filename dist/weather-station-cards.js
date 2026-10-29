@@ -20,6 +20,17 @@ var PeriodStore = class {
   goToNow(collectionKey) {
     this.setPeriod(collectionKey, this.getPeriod(collectionKey));
   }
+  setComparison(collectionKey, enabled) {
+    const current = this.getSelection(collectionKey);
+    this.publish(collectionKey, { ...current, compare: enabled });
+  }
+  getComparisonSelection(collectionKey) {
+    const current = this.getSelection(collectionKey);
+    if (!current.compare) return void 0;
+    const duration = current.end.getTime() - current.start.getTime() + 1;
+    const end = new Date(current.start.getTime() - 1);
+    return { ...current, start: new Date(end.getTime() - duration + 1), end, compare: false };
+  }
   shift(collectionKey, direction) {
     const current = this.getSelection(collectionKey);
     const delta = milliseconds[current.period];
@@ -99,12 +110,13 @@ var presets = [
 var presetPeriod = { "Aujourd\u2019hui": "day", "Hier": "day", "Cette semaine": "week", "Ce mois-ci": "month", "Ce trimestre": "quarter", "Cette ann\xE9e": "year", "7 derniers jours": "week", "30 derniers jours": "month", "365 derniers jours": "year" };
 var isoDate = (date) => date.toISOString().slice(0, 10);
 var WeatherStationPeriodSelector = class extends HTMLElement {
-  config = { collection_key: "default" };
+  config = { collection_key: "default", fixed: false };
   selection = weatherPeriodStore.getSelection("default");
   pickerOpen = false;
+  optionsOpen = false;
   unsubscribe;
   setConfig(config) {
-    this.config = { collection_key: config.collection_key ?? "default" };
+    this.config = { collection_key: config.collection_key ?? "default", fixed: config.fixed ?? false };
     this.unsubscribe?.();
     this.unsubscribe = weatherPeriodStore.subscribeSelection(this.config.collection_key, (selection) => {
       this.selection = selection;
@@ -136,6 +148,7 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
   }
   render() {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    this.classList.toggle("fixed", Boolean(this.config.fixed));
     root.replaceChildren();
     const card = document.createElement("ha-card");
     card.className = "toolbar";
@@ -170,11 +183,26 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     more.className = "icon";
     more.textContent = "\u22EE";
     more.setAttribute("aria-label", "Choisir la p\xE9riode");
-    more.addEventListener("click", () => this.openPicker());
+    more.addEventListener("click", () => {
+      this.optionsOpen = !this.optionsOpen;
+      this.render();
+    });
     card.append(calendar, block, now, previous, next, more);
     const style = document.createElement("style");
-    style.textContent = `:host{display:block}.toolbar{min-height:56px;padding:0 12px;display:flex;align-items:center;gap:10px}.calendar,.icon{border:0;background:transparent;color:var(--primary-text-color);font:inherit;cursor:pointer}.calendar ha-icon{--mdc-icon-size:23px}.dates{font-weight:600;white-space:nowrap}.subtitle{font-size:.78rem;color:var(--secondary-text-color)}.now{margin-left:auto;border:0;border-radius:20px;padding:9px 14px;background:color-mix(in srgb,var(--primary-color) 14%,transparent);color:var(--primary-color);font:inherit;font-weight:600;cursor:pointer}.icon{font-size:30px;width:30px}.backdrop{position:fixed;z-index:99;inset:0;background:#0004;display:grid;place-items:center}.picker{width:min(760px,94vw);min-height:410px;background:var(--card-background-color);border-radius:20px;box-shadow:0 12px 35px #0006;display:grid;grid-template-columns:210px 1fr;overflow:hidden}.presets{padding:14px;border-right:1px solid var(--divider-color);display:flex;flex-direction:column;gap:2px}.presets button{border:0;background:transparent;color:var(--primary-text-color);font:inherit;text-align:left;padding:10px;border-radius:8px;cursor:pointer}.presets button:hover{background:color-mix(in srgb,var(--primary-color) 12%,transparent)}.form{padding:28px;display:flex;flex-direction:column;gap:20px}.form h3{margin:0}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fields label{display:flex;flex-direction:column;gap:6px;color:var(--secondary-text-color);font-size:.85rem}.fields input{font:inherit;padding:10px;border:1px solid var(--divider-color);border-radius:8px;color:var(--primary-text-color);background:var(--card-background-color)}.actions{margin-top:auto;display:flex;justify-content:flex-end;gap:12px}.actions button{border:0;border-radius:22px;padding:10px 16px;font:inherit;cursor:pointer}.apply{background:var(--primary-color);color:var(--text-primary-color)}@media(max-width:600px){.picker{grid-template-columns:1fr;max-height:90vh;overflow:auto}.presets{border-right:0;border-bottom:1px solid var(--divider-color);display:grid;grid-template-columns:1fr 1fr}.dates{font-size:.92rem}.now{padding:8px}.icon{width:25px}}`;
+    style.textContent = `:host{display:block}:host(.fixed){position:fixed;z-index:20;left:50%;bottom:24px;transform:translateX(-50%);width:min(600px,calc(100vw - 32px))}.toolbar{min-height:56px;padding:0 12px;display:flex;align-items:center;gap:10px}.calendar,.icon{border:0;background:transparent;color:var(--primary-text-color);font:inherit;cursor:pointer}.calendar ha-icon{--mdc-icon-size:23px}.dates{font-weight:600;white-space:nowrap}.subtitle{font-size:.78rem;color:var(--secondary-text-color)}.now{margin-left:auto;border:0;border-radius:20px;padding:9px 14px;background:color-mix(in srgb,var(--primary-color) 14%,transparent);color:var(--primary-color);font:inherit;font-weight:600;cursor:pointer}.icon{font-size:30px;width:30px}.backdrop{position:fixed;z-index:99;inset:0;background:#0004;display:grid;place-items:center}.picker{width:min(760px,94vw);min-height:410px;background:var(--card-background-color);border-radius:20px;box-shadow:0 12px 35px #0006;display:grid;grid-template-columns:210px 1fr;overflow:hidden}.presets{padding:14px;border-right:1px solid var(--divider-color);display:flex;flex-direction:column;gap:2px}.presets button{border:0;background:transparent;color:var(--primary-text-color);font:inherit;text-align:left;padding:10px;border-radius:8px;cursor:pointer}.presets button:hover{background:color-mix(in srgb,var(--primary-color) 12%,transparent)}.form{padding:28px;display:flex;flex-direction:column;gap:20px}.form h3{margin:0}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fields label{display:flex;flex-direction:column;gap:6px;color:var(--secondary-text-color);font-size:.85rem}.fields input{font:inherit;padding:10px;border:1px solid var(--divider-color);border-radius:8px;color:var(--primary-text-color);background:var(--card-background-color)}.actions{margin-top:auto;display:flex;justify-content:flex-end;gap:12px}.actions button{border:0;border-radius:22px;padding:10px 16px;font:inherit;cursor:pointer}.apply{background:var(--primary-color);color:var(--text-primary-color)}@media(max-width:600px){.picker{grid-template-columns:1fr;max-height:90vh;overflow:auto}.presets{border-right:0;border-bottom:1px solid var(--divider-color);display:grid;grid-template-columns:1fr 1fr}.dates{font-size:.92rem}.now{padding:8px}.icon{width:25px}}`;
     root.append(style, card);
+    if (this.optionsOpen) {
+      const options = document.createElement("div");
+      options.className = "options";
+      const compare = document.createElement("button");
+      compare.textContent = this.selection.compare ? "Retirer la comparaison" : "Comparer \xE0 la p\xE9riode pr\xE9c\xE9dente";
+      compare.addEventListener("click", () => {
+        this.optionsOpen = false;
+        weatherPeriodStore.setComparison(this.config.collection_key, !this.selection.compare);
+      });
+      options.append(compare);
+      root.append(options);
+    }
     if (this.pickerOpen) this.renderPicker(root);
   }
   renderPicker(root) {

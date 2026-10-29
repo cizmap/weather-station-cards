@@ -1,5 +1,5 @@
 export type WeatherPeriod = "day" | "week" | "month" | "quarter" | "year";
-export interface PeriodSelection { period: WeatherPeriod; start: Date; end: Date; }
+export interface PeriodSelection { period: WeatherPeriod; start: Date; end: Date; compare?: boolean; }
 type PeriodListener = (period: WeatherPeriod) => void;
 type SelectionListener = (selection: PeriodSelection) => void;
 const milliseconds: Record<WeatherPeriod, number> = { day: 86400000, week: 7 * 86400000, month: 31 * 86400000, quarter: 92 * 86400000, year: 365 * 86400000 };
@@ -17,6 +17,8 @@ export class PeriodStore {
   }
   setPeriod(collectionKey: string, period: WeatherPeriod): void { this.publish(collectionKey, this.forPeriod(period, this.now())); }
   goToNow(collectionKey: string): void { this.setPeriod(collectionKey, this.getPeriod(collectionKey)); }
+  setComparison(collectionKey: string, enabled: boolean): void { const current=this.getSelection(collectionKey); this.publish(collectionKey,{...current,compare:enabled}); }
+  getComparisonSelection(collectionKey: string): PeriodSelection | undefined { const current=this.getSelection(collectionKey); if(!current.compare)return undefined; const duration=current.end.getTime()-current.start.getTime()+1; const end=new Date(current.start.getTime()-1); return {...current,start:new Date(end.getTime()-duration+1),end,compare:false}; }
   shift(collectionKey: string, direction: -1 | 1): void {
     const current = this.getSelection(collectionKey);
     const delta = milliseconds[current.period];
