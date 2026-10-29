@@ -1,15 +1,36 @@
 // src/period-store.ts
+var milliseconds = { day: 864e5, week: 7 * 864e5, month: 31 * 864e5, year: 365 * 864e5 };
 var PeriodStore = class {
-  periods = /* @__PURE__ */ new Map();
+  constructor(now = () => /* @__PURE__ */ new Date()) {
+    this.now = now;
+  }
+  selections = /* @__PURE__ */ new Map();
   listeners = /* @__PURE__ */ new Map();
+  selectionListeners = /* @__PURE__ */ new Map();
   getPeriod(collectionKey) {
-    return this.periods.get(collectionKey) ?? "day";
+    return this.getSelection(collectionKey).period;
+  }
+  getSelection(collectionKey) {
+    const selection = this.selections.get(collectionKey);
+    return selection ? { ...selection, start: new Date(selection.start), end: new Date(selection.end) } : this.forPeriod("day", this.now());
   }
   setPeriod(collectionKey, period) {
-    this.periods.set(collectionKey, period);
-    for (const listener of this.listeners.get(collectionKey) ?? []) {
-      listener(period);
-    }
+    this.publish(collectionKey, this.forPeriod(period, this.now()));
+  }
+  goToNow(collectionKey) {
+    this.setPeriod(collectionKey, this.getPeriod(collectionKey));
+  }
+  shift(collectionKey, direction) {
+    const current = this.getSelection(collectionKey);
+    const delta = milliseconds[current.period];
+    const candidateEnd = new Date(current.end.getTime() + direction * delta);
+    const end = candidateEnd > this.now() ? this.now() : candidateEnd;
+    this.publish(collectionKey, { period: current.period, start: new Date(end.getTime() - delta), end });
+  }
+  setRange(collectionKey, start, end) {
+    const duration = Math.max(1, end.getTime() - start.getTime());
+    const period = Object.entries(milliseconds).reduce((closest, [name, size]) => Math.abs(size - duration) < Math.abs(milliseconds[closest] - duration) ? name : closest, "day");
+    this.publish(collectionKey, { period, start: new Date(start), end: new Date(end) });
   }
   subscribe(collectionKey, listener) {
     const listeners = this.listeners.get(collectionKey) ?? /* @__PURE__ */ new Set();
@@ -17,6 +38,22 @@ var PeriodStore = class {
     this.listeners.set(collectionKey, listeners);
     listener(this.getPeriod(collectionKey));
     return () => listeners.delete(listener);
+  }
+  subscribeSelection(collectionKey, listener) {
+    const listeners = this.selectionListeners.get(collectionKey) ?? /* @__PURE__ */ new Set();
+    listeners.add(listener);
+    this.selectionListeners.set(collectionKey, listeners);
+    listener(this.getSelection(collectionKey));
+    return () => listeners.delete(listener);
+  }
+  forPeriod(period, end) {
+    const endCopy = new Date(end);
+    return { period, end: endCopy, start: new Date(endCopy.getTime() - milliseconds[period]) };
+  }
+  publish(collectionKey, selection) {
+    this.selections.set(collectionKey, selection);
+    for (const listener of this.listeners.get(collectionKey) ?? []) listener(selection.period);
+    for (const listener of this.selectionListeners.get(collectionKey) ?? []) listener(this.getSelection(collectionKey));
   }
 };
 var weatherPeriodStore = new PeriodStore();
@@ -26,14 +63,14 @@ var labels = { day: "Jour", week: "Semaine", month: "Mois", year: "Ann\xE9e" };
 var orderedPeriods = ["day", "week", "month", "year"];
 var WeatherStationPeriodSelector = class extends HTMLElement {
   config = { collection_key: "default" };
-  period = "day";
+  selection = weatherPeriodStore.getSelection("default");
   menuOpen = false;
   unsubscribe;
   setConfig(config) {
     this.config = { collection_key: config.collection_key ?? "default" };
     this.unsubscribe?.();
-    this.unsubscribe = weatherPeriodStore.subscribe(this.config.collection_key, (period) => {
-      this.period = period;
+    this.unsubscribe = weatherPeriodStore.subscribeSelection(this.config.collection_key, (selection) => {
+      this.selection = selection;
       this.render();
     });
   }
@@ -52,10 +89,8 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     weatherPeriodStore.setPeriod(this.config.collection_key, period);
   }
   rangeLabel() {
-    const now = /* @__PURE__ */ new Date();
-    const starts = { day: new Date(now), week: new Date(now.getTime() - 6 * 864e5), month: new Date(now.getTime() - 30 * 864e5), year: new Date(now.getTime() - 364 * 864e5) };
     const format = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
-    return `${format.format(starts[this.period])} \u2013 ${format.format(now)}`;
+    return `${format.format(this.selection.start)} \u2013 ${format.format(this.selection.end)}`;
   }
   render() {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
@@ -72,23 +107,23 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     main.textContent = this.rangeLabel();
     const secondary = document.createElement("div");
     secondary.className = "period";
-    secondary.textContent = labels[this.period];
+    secondary.textContent = labels[this.selection.period];
     dates.append(main, secondary);
     range.append(icon, dates);
     const now = document.createElement("button");
     now.className = "now";
     now.textContent = "Maintenant";
-    now.addEventListener("click", () => this.select("day"));
+    now.addEventListener("click", () => weatherPeriodStore.goToNow(this.config.collection_key));
     const previous = document.createElement("button");
     previous.className = "icon";
     previous.setAttribute("aria-label", "P\xE9riode pr\xE9c\xE9dente");
     previous.textContent = "\u2039";
-    previous.addEventListener("click", () => this.select(orderedPeriods[Math.max(0, orderedPeriods.indexOf(this.period) - 1)]));
+    previous.addEventListener("click", () => weatherPeriodStore.shift(this.config.collection_key, -1));
     const next = document.createElement("button");
     next.className = "icon";
     next.setAttribute("aria-label", "P\xE9riode suivante");
     next.textContent = "\u203A";
-    next.addEventListener("click", () => this.select(orderedPeriods[Math.min(orderedPeriods.length - 1, orderedPeriods.indexOf(this.period) + 1)]));
+    next.addEventListener("click", () => weatherPeriodStore.shift(this.config.collection_key, 1));
     const more = document.createElement("button");
     more.className = "icon";
     more.setAttribute("aria-label", "Choisir la p\xE9riode");
@@ -103,7 +138,7 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     orderedPeriods.forEach((period) => {
       const button = document.createElement("button");
       button.textContent = labels[period];
-      button.setAttribute("aria-pressed", String(period === this.period));
+      button.setAttribute("aria-pressed", String(period === this.selection.period));
       button.addEventListener("click", () => this.select(period));
       menu.append(button);
     });
@@ -144,10 +179,6 @@ function downsample(points, maximum) {
   if (points.length <= maximum || maximum < 3) return points;
   return Array.from({ length: maximum }, (_, index) => points[Math.round(index * (points.length - 1) / (maximum - 1))]);
 }
-function periodStart(period, now = /* @__PURE__ */ new Date()) {
-  const days = { day: 1, week: 7, month: 31, year: 365 };
-  return new Date(now.getTime() - days[period] * 24 * 60 * 60 * 1e3);
-}
 
 // src/weather-station-chart.ts
 var labels2 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
@@ -156,6 +187,7 @@ var WeatherStationChart = class extends HTMLElement {
   hassValue;
   points = [];
   period = "day";
+  selection = weatherPeriodStore.getSelection("default");
   unsubscribe;
   loading = false;
   set hass(value) {
@@ -167,8 +199,9 @@ var WeatherStationChart = class extends HTMLElement {
     if (!config.entity) throw new Error("entity is required");
     this.config = { ...config, entity: config.entity };
     this.unsubscribe?.();
-    this.unsubscribe = weatherPeriodStore.subscribe(config.collection_key ?? "default", (period) => {
-      this.period = period;
+    this.unsubscribe = weatherPeriodStore.subscribeSelection(config.collection_key ?? "default", (selection) => {
+      this.period = selection.period;
+      this.selection = selection;
       void this.refresh();
     });
   }
@@ -185,8 +218,8 @@ var WeatherStationChart = class extends HTMLElement {
     try {
       const history = await this.hassValue.callWS({
         type: "history/history_during_period",
-        start_time: periodStart(this.period).toISOString(),
-        end_time: (/* @__PURE__ */ new Date()).toISOString(),
+        start_time: this.selection.start.toISOString(),
+        end_time: this.selection.end.toISOString(),
         entity_ids: [this.config.entity],
         minimal_response: true,
         no_attributes: true
@@ -311,6 +344,7 @@ var WeatherStationRainChart = class extends HTMLElement {
   hassValue;
   bars = [];
   period = "day";
+  selection = weatherPeriodStore.getSelection("default");
   unsubscribe;
   loading = false;
   set hass(value) {
@@ -322,8 +356,9 @@ var WeatherStationRainChart = class extends HTMLElement {
     if (!config.entity) throw new Error("entity is required");
     this.config = config;
     this.unsubscribe?.();
-    this.unsubscribe = weatherPeriodStore.subscribe(config.collection_key ?? "default", (period) => {
-      this.period = period;
+    this.unsubscribe = weatherPeriodStore.subscribeSelection(config.collection_key ?? "default", (selection) => {
+      this.period = selection.period;
+      this.selection = selection;
       void this.refresh();
     });
   }
@@ -338,7 +373,7 @@ var WeatherStationRainChart = class extends HTMLElement {
     this.loading = true;
     this.render();
     try {
-      const history = await this.hassValue.callWS({ type: "history/history_during_period", start_time: periodStart(this.period).toISOString(), end_time: (/* @__PURE__ */ new Date()).toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
+      const history = await this.hassValue.callWS({ type: "history/history_during_period", start_time: this.selection.start.toISOString(), end_time: this.selection.end.toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
       this.bars = rainBars(historyPoints(history[this.config.entity] ?? []));
     } catch {
       this.bars = [];
@@ -465,6 +500,7 @@ var WeatherStationWindRose = class extends HTMLElement {
   hassValue;
   bins = [];
   period = "day";
+  selection = weatherPeriodStore.getSelection("default");
   unsub;
   loading = false;
   set hass(value) {
@@ -476,8 +512,9 @@ var WeatherStationWindRose = class extends HTMLElement {
     if (!config.entity) throw new Error("entity is required");
     this.config = config;
     this.unsub?.();
-    this.unsub = weatherPeriodStore.subscribe(config.collection_key ?? "default", (p) => {
-      this.period = p;
+    this.unsub = weatherPeriodStore.subscribeSelection(config.collection_key ?? "default", (selection) => {
+      this.period = selection.period;
+      this.selection = selection;
       void this.refresh();
     });
   }
@@ -492,7 +529,7 @@ var WeatherStationWindRose = class extends HTMLElement {
     this.loading = true;
     this.render();
     try {
-      const h = await this.hassValue.callWS({ type: "history/history_during_period", start_time: periodStart(this.period).toISOString(), end_time: (/* @__PURE__ */ new Date()).toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
+      const h = await this.hassValue.callWS({ type: "history/history_during_period", start_time: this.selection.start.toISOString(), end_time: this.selection.end.toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
       this.bins = windRoseBins(historyPoints(h[this.config.entity] ?? []));
     } catch {
       this.bins = [];

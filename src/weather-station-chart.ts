@@ -20,6 +20,7 @@ class WeatherStationChart extends HTMLElement {
   private hassValue?: HomeAssistant;
   private points: HistoryPoint[] = [];
   private period: WeatherPeriod = "day";
+  private selection = weatherPeriodStore.getSelection("default");
   private unsubscribe?: () => void;
   private loading = false;
 
@@ -32,8 +33,9 @@ class WeatherStationChart extends HTMLElement {
     if (!config.entity) throw new Error("entity is required");
     this.config = { ...config, entity: config.entity };
     this.unsubscribe?.();
-    this.unsubscribe = weatherPeriodStore.subscribe(config.collection_key ?? "default", (period) => {
-      this.period = period;
+    this.unsubscribe = weatherPeriodStore.subscribeSelection(config.collection_key ?? "default", (selection) => {
+      this.period = selection.period;
+      this.selection = selection;
       void this.refresh();
     });
   }
@@ -47,8 +49,8 @@ class WeatherStationChart extends HTMLElement {
     try {
       const history = await this.hassValue.callWS({
         type: "history/history_during_period",
-        start_time: periodStart(this.period).toISOString(),
-        end_time: new Date().toISOString(),
+        start_time: this.selection.start.toISOString(),
+        end_time: this.selection.end.toISOString(),
         entity_ids: [this.config.entity],
         minimal_response: true,
         no_attributes: true
