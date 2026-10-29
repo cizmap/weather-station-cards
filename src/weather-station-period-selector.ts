@@ -1,6 +1,6 @@
 import { weatherPeriodStore, type PeriodSelection, type WeatherPeriod } from "./period-store.js";
 
-const labels: Record<WeatherPeriod, string> = { day: "Jour", week: "Semaine", month: "Mois", year: "Année" };
+const labels: Record<WeatherPeriod, string> = { day: "Jour", week: "Semaine", month: "Mois", quarter: "Trimestre", year: "Année" };
 interface PeriodSelectorConfig { collection_key?: string; }
 type Preset = { label: string; start: (now: Date) => Date };
 const presets: Preset[] = [
@@ -14,7 +14,7 @@ const presets: Preset[] = [
   { label: "30 derniers jours", start: n => new Date(n.getTime() - 29 * 86400000) },
   { label: "365 derniers jours", start: n => new Date(n.getTime() - 364 * 86400000) }
 ];
-const presetPeriod: Record<string, WeatherPeriod> = { "Aujourd’hui":"day", "Hier":"day", "Cette semaine":"week", "Ce mois-ci":"month", "Ce trimestre":"month", "Cette année":"year", "7 derniers jours":"week", "30 derniers jours":"month", "365 derniers jours":"year" };
+const presetPeriod: Record<string, WeatherPeriod> = { "Aujourd’hui":"day", "Hier":"day", "Cette semaine":"week", "Ce mois-ci":"month", "Ce trimestre":"quarter", "Cette année":"year", "7 derniers jours":"week", "30 derniers jours":"month", "365 derniers jours":"year" };
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
 class WeatherStationPeriodSelector extends HTMLElement {
@@ -26,7 +26,11 @@ class WeatherStationPeriodSelector extends HTMLElement {
   connectedCallback(): void { this.render(); }
   disconnectedCallback(): void { this.unsubscribe?.(); this.unsubscribe = undefined; }
   getCardSize(): number { return 1; }
-  private rangeLabel(): string { const f = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }); return `${f.format(this.selection.start)} – ${f.format(this.selection.end)}`; }
+  private rangeLabel(): string {
+    const includeYear = ["month", "quarter", "year"].includes(this.selection.period);
+    const f = new Intl.DateTimeFormat("fr-FR", includeYear ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short" });
+    return `${f.format(this.selection.start)} – ${f.format(this.selection.end)}`;
+  }
   private openPicker(): void { this.pickerOpen = true; this.render(); }
   private selectRange(start: Date, end: Date, period?: WeatherPeriod): void { this.pickerOpen = false; weatherPeriodStore.setRange(this.config.collection_key, start, end, period); }
 

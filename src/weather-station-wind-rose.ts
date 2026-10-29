@@ -2,7 +2,7 @@ import { historyPoints, periodStart, windRoseBins, type HistorySample } from "./
 import { weatherPeriodStore, type WeatherPeriod } from "./period-store.js";
 interface Hass { callWS(message: Record<string, unknown>): Promise<Record<string, HistorySample[]>>; }
 interface Config { entity: string; collection_key?: string; title?: string; }
-const labels: Record<WeatherPeriod,string>={day:"24 h",week:"7 jours",month:"31 jours",year:"1 an"};
+const labels: Record<WeatherPeriod,string>={day:"24 h",week:"7 jours",month:"31 jours",quarter:"trimestre",year:"1 an"};
 const compass=["N","NE","E","SE","S","SO","O","NO"];
 class WeatherStationWindRose extends HTMLElement {
  private config?:Config;private hassValue?:Hass;private bins:number[]=[];private period:WeatherPeriod="day";private selection=weatherPeriodStore.getSelection("default");private unsub?:()=>void;private loading=false;

@@ -3,7 +3,7 @@ import { weatherPeriodStore, type WeatherPeriod } from "./period-store.js";
 
 interface HomeAssistant { states: Record<string, { state: string; attributes: Record<string, unknown> }>; callWS(message: Record<string, unknown>): Promise<Record<string, HistorySample[]>>; }
 interface RainChartConfig { entity: string; collection_key?: string; title?: string; }
-const labels: Record<WeatherPeriod, string> = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+const labels: Record<WeatherPeriod, string> = { day: "24 h", week: "7 jours", month: "31 jours", quarter: "trimestre", year: "1 an" };
 
 class WeatherStationRainChart extends HTMLElement {
   private config?: RainChartConfig; private hassValue?: HomeAssistant; private bars: RainBar[]=[]; private period: WeatherPeriod="day"; private selection=weatherPeriodStore.getSelection("default"); private unsubscribe?:()=>void; private loading=false;

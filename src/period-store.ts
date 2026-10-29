@@ -1,8 +1,8 @@
-export type WeatherPeriod = "day" | "week" | "month" | "year";
+export type WeatherPeriod = "day" | "week" | "month" | "quarter" | "year";
 export interface PeriodSelection { period: WeatherPeriod; start: Date; end: Date; }
 type PeriodListener = (period: WeatherPeriod) => void;
 type SelectionListener = (selection: PeriodSelection) => void;
-const milliseconds: Record<WeatherPeriod, number> = { day: 86400000, week: 7 * 86400000, month: 31 * 86400000, year: 365 * 86400000 };
+const milliseconds: Record<WeatherPeriod, number> = { day: 86400000, week: 7 * 86400000, month: 31 * 86400000, quarter: 92 * 86400000, year: 365 * 86400000 };
 
 export class PeriodStore {
   private readonly selections = new Map<string, PeriodSelection>();
@@ -46,6 +46,7 @@ export class PeriodStore {
     start.setUTCHours(0, 0, 0, 0);
     if (period === "week") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
     if (period === "month") start.setUTCDate(1);
+    if (period === "quarter") { start.setUTCMonth(Math.floor(start.getUTCMonth() / 3) * 3, 1); }
     if (period === "year") { start.setUTCMonth(0, 1); }
     return { period, start, end: endCopy };
   }

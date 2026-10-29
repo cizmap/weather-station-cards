@@ -13,7 +13,7 @@ interface ChartConfig {
   color?: string;
 }
 
-const labels: Record<WeatherPeriod, string> = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+const labels: Record<WeatherPeriod, string> = { day: "24 h", week: "7 jours", month: "31 jours", quarter: "trimestre", year: "1 an" };
 
 class WeatherStationChart extends HTMLElement {
   private config?: Required<Pick<ChartConfig, "entity">> & ChartConfig;

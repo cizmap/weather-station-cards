@@ -2,8 +2,8 @@ import { weatherPeriodStore, type WeatherPeriod } from "./period-store.js";
 
 interface HomeAssistant { states: Record<string, { state: string; attributes: Record<string, unknown> }>; }
 interface RainConfig { daily_entity: string; weekly_entity: string; monthly_entity: string; yearly_entity: string; collection_key?: string; title?: string; }
-const labels: Record<WeatherPeriod, string> = { day: "Aujourd’hui", week: "Cette semaine", month: "Ce mois", year: "Cette année" };
-const field: Record<WeatherPeriod, keyof RainConfig> = { day: "daily_entity", week: "weekly_entity", month: "monthly_entity", year: "yearly_entity" };
+const labels: Record<WeatherPeriod, string> = { day: "Aujourd’hui", week: "Cette semaine", month: "Ce mois", quarter: "Ce trimestre", year: "Cette année" };
+const field: Record<WeatherPeriod, keyof RainConfig> = { day: "daily_entity", week: "weekly_entity", month: "monthly_entity", quarter: "monthly_entity", year: "yearly_entity" };
 
 class WeatherStationRainSummary extends HTMLElement {
   private config?: RainConfig; private hassValue?: HomeAssistant; private period: WeatherPeriod = "day"; private unsubscribe?: () => void; private stateValue = "";

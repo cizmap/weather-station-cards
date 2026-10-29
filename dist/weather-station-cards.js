@@ -1,5 +1,5 @@
 // src/period-store.ts
-var milliseconds = { day: 864e5, week: 7 * 864e5, month: 31 * 864e5, year: 365 * 864e5 };
+var milliseconds = { day: 864e5, week: 7 * 864e5, month: 31 * 864e5, quarter: 92 * 864e5, year: 365 * 864e5 };
 var PeriodStore = class {
   constructor(now = () => /* @__PURE__ */ new Date()) {
     this.now = now;
@@ -60,6 +60,9 @@ var PeriodStore = class {
     start.setUTCHours(0, 0, 0, 0);
     if (period === "week") start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
     if (period === "month") start.setUTCDate(1);
+    if (period === "quarter") {
+      start.setUTCMonth(Math.floor(start.getUTCMonth() / 3) * 3, 1);
+    }
     if (period === "year") {
       start.setUTCMonth(0, 1);
     }
@@ -74,7 +77,7 @@ var PeriodStore = class {
 var weatherPeriodStore = new PeriodStore();
 
 // src/weather-station-period-selector.ts
-var labels = { day: "Jour", week: "Semaine", month: "Mois", year: "Ann\xE9e" };
+var labels = { day: "Jour", week: "Semaine", month: "Mois", quarter: "Trimestre", year: "Ann\xE9e" };
 var presets = [
   { label: "Aujourd\u2019hui", start: (n) => new Date(n.getFullYear(), n.getMonth(), n.getDate()) },
   { label: "Hier", start: (n) => new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1) },
@@ -86,7 +89,7 @@ var presets = [
   { label: "30 derniers jours", start: (n) => new Date(n.getTime() - 29 * 864e5) },
   { label: "365 derniers jours", start: (n) => new Date(n.getTime() - 364 * 864e5) }
 ];
-var presetPeriod = { "Aujourd\u2019hui": "day", "Hier": "day", "Cette semaine": "week", "Ce mois-ci": "month", "Ce trimestre": "month", "Cette ann\xE9e": "year", "7 derniers jours": "week", "30 derniers jours": "month", "365 derniers jours": "year" };
+var presetPeriod = { "Aujourd\u2019hui": "day", "Hier": "day", "Cette semaine": "week", "Ce mois-ci": "month", "Ce trimestre": "quarter", "Cette ann\xE9e": "year", "7 derniers jours": "week", "30 derniers jours": "month", "365 derniers jours": "year" };
 var isoDate = (date) => date.toISOString().slice(0, 10);
 var WeatherStationPeriodSelector = class extends HTMLElement {
   config = { collection_key: "default" };
@@ -112,7 +115,8 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     return 1;
   }
   rangeLabel() {
-    const f = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+    const includeYear = ["month", "quarter", "year"].includes(this.selection.period);
+    const f = new Intl.DateTimeFormat("fr-FR", includeYear ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short" });
     return `${f.format(this.selection.start)} \u2013 ${f.format(this.selection.end)}`;
   }
   openPicker() {
@@ -262,7 +266,7 @@ function downsample(points, maximum) {
 }
 
 // src/weather-station-chart.ts
-var labels2 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+var labels2 = { day: "24 h", week: "7 jours", month: "31 jours", quarter: "trimestre", year: "1 an" };
 var WeatherStationChart = class extends HTMLElement {
   config;
   hassValue;
@@ -364,8 +368,8 @@ var WeatherStationChart = class extends HTMLElement {
 if (!customElements.get("weather-station-chart")) customElements.define("weather-station-chart", WeatherStationChart);
 
 // src/weather-station-rain-summary.ts
-var labels3 = { day: "Aujourd\u2019hui", week: "Cette semaine", month: "Ce mois", year: "Cette ann\xE9e" };
-var field = { day: "daily_entity", week: "weekly_entity", month: "monthly_entity", year: "yearly_entity" };
+var labels3 = { day: "Aujourd\u2019hui", week: "Cette semaine", month: "Ce mois", quarter: "Ce trimestre", year: "Cette ann\xE9e" };
+var field = { day: "daily_entity", week: "weekly_entity", month: "monthly_entity", quarter: "monthly_entity", year: "yearly_entity" };
 var WeatherStationRainSummary = class extends HTMLElement {
   config;
   hassValue;
@@ -419,7 +423,7 @@ var WeatherStationRainSummary = class extends HTMLElement {
 if (!customElements.get("weather-station-rain-summary")) customElements.define("weather-station-rain-summary", WeatherStationRainSummary);
 
 // src/weather-station-rain-chart.ts
-var labels4 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+var labels4 = { day: "24 h", week: "7 jours", month: "31 jours", quarter: "trimestre", year: "1 an" };
 var WeatherStationRainChart = class extends HTMLElement {
   config;
   hassValue;
@@ -574,7 +578,7 @@ ${cardinal(direction)}` : "\u2014";
 if (!customElements.get("weather-station-wind-compass")) customElements.define("weather-station-wind-compass", WeatherStationWindCompass);
 
 // src/weather-station-wind-rose.ts
-var labels5 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+var labels5 = { day: "24 h", week: "7 jours", month: "31 jours", quarter: "trimestre", year: "1 an" };
 var compass = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
 var WeatherStationWindRose = class extends HTMLElement {
   config;
