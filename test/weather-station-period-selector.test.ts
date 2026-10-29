@@ -14,15 +14,9 @@ describe("weather-station-period-selector", () => {
     card.setConfig({ collection_key: "jardin" });
     document.body.append(card);
 
-    const week = [...card.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent === "Semaine");
-    week!.click();
-
-    expect(weatherPeriodStore.getPeriod("jardin")).toBe("week");
-
-    const now = [...card.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")]
-      .find((button) => button.textContent === "Maintenant");
-    now!.click();
-    expect(weatherPeriodStore.getPeriod("jardin")).toBe("week");
+    const menu = [...card.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.getAttribute("aria-label") === "Choisir la période");
+    menu!.click();
+    expect(card.shadowRoot!.textContent).toContain("Aujourd’hui");
   });
 });

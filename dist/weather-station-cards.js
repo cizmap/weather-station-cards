@@ -75,11 +75,22 @@ var weatherPeriodStore = new PeriodStore();
 
 // src/weather-station-period-selector.ts
 var labels = { day: "Jour", week: "Semaine", month: "Mois", year: "Ann\xE9e" };
-var orderedPeriods = ["day", "week", "month", "year"];
+var presets = [
+  { label: "Aujourd\u2019hui", start: (n) => new Date(n.getFullYear(), n.getMonth(), n.getDate()) },
+  { label: "Hier", start: (n) => new Date(n.getFullYear(), n.getMonth(), n.getDate() - 1) },
+  { label: "Cette semaine", start: (n) => new Date(n.getFullYear(), n.getMonth(), n.getDate() - (n.getDay() + 6) % 7) },
+  { label: "Ce mois-ci", start: (n) => new Date(n.getFullYear(), n.getMonth(), 1) },
+  { label: "Ce trimestre", start: (n) => new Date(n.getFullYear(), Math.floor(n.getMonth() / 3) * 3, 1) },
+  { label: "Cette ann\xE9e", start: (n) => new Date(n.getFullYear(), 0, 1) },
+  { label: "7 derniers jours", start: (n) => new Date(n.getTime() - 6 * 864e5) },
+  { label: "30 derniers jours", start: (n) => new Date(n.getTime() - 29 * 864e5) },
+  { label: "365 derniers jours", start: (n) => new Date(n.getTime() - 364 * 864e5) }
+];
+var isoDate = (date) => date.toISOString().slice(0, 10);
 var WeatherStationPeriodSelector = class extends HTMLElement {
   config = { collection_key: "default" };
   selection = weatherPeriodStore.getSelection("default");
-  menuOpen = false;
+  pickerOpen = false;
   unsubscribe;
   setConfig(config) {
     this.config = { collection_key: config.collection_key ?? "default" };
@@ -99,68 +110,122 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
   getCardSize() {
     return 1;
   }
-  select(period) {
-    this.menuOpen = false;
-    weatherPeriodStore.setPeriod(this.config.collection_key, period);
-  }
   rangeLabel() {
-    const format = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
-    return `${format.format(this.selection.start)} \u2013 ${format.format(this.selection.end)}`;
+    const f = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+    return `${f.format(this.selection.start)} \u2013 ${f.format(this.selection.end)}`;
+  }
+  openPicker() {
+    this.pickerOpen = true;
+    this.render();
+  }
+  selectRange(start, end) {
+    this.pickerOpen = false;
+    weatherPeriodStore.setRange(this.config.collection_key, start, end);
   }
   render() {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
     root.replaceChildren();
     const card = document.createElement("ha-card");
     card.className = "toolbar";
-    const range = document.createElement("div");
-    range.className = "range";
-    const icon = document.createElement("ha-icon");
-    icon.setAttribute("icon", "mdi:calendar");
-    const dates = document.createElement("div");
-    const main = document.createElement("div");
-    main.className = "dates";
-    main.textContent = this.rangeLabel();
-    const secondary = document.createElement("div");
-    secondary.className = "period";
-    secondary.textContent = labels[this.selection.period];
-    dates.append(main, secondary);
-    range.append(icon, dates);
+    const calendar = document.createElement("button");
+    calendar.className = "calendar";
+    calendar.setAttribute("aria-label", "Choisir la p\xE9riode");
+    calendar.innerHTML = '<ha-icon icon="mdi:calendar"></ha-icon>';
+    calendar.addEventListener("click", () => this.openPicker());
+    const block = document.createElement("div");
+    const date = document.createElement("div");
+    date.className = "dates";
+    date.textContent = this.rangeLabel();
+    const subtitle = document.createElement("div");
+    subtitle.className = "subtitle";
+    subtitle.textContent = labels[this.selection.period];
+    block.append(date, subtitle);
     const now = document.createElement("button");
     now.className = "now";
     now.textContent = "Maintenant";
     now.addEventListener("click", () => weatherPeriodStore.goToNow(this.config.collection_key));
     const previous = document.createElement("button");
     previous.className = "icon";
-    previous.setAttribute("aria-label", "P\xE9riode pr\xE9c\xE9dente");
     previous.textContent = "\u2039";
+    previous.setAttribute("aria-label", "P\xE9riode pr\xE9c\xE9dente");
     previous.addEventListener("click", () => weatherPeriodStore.shift(this.config.collection_key, -1));
     const next = document.createElement("button");
     next.className = "icon";
-    next.setAttribute("aria-label", "P\xE9riode suivante");
     next.textContent = "\u203A";
+    next.setAttribute("aria-label", "P\xE9riode suivante");
     next.addEventListener("click", () => weatherPeriodStore.shift(this.config.collection_key, 1));
     const more = document.createElement("button");
     more.className = "icon";
-    more.setAttribute("aria-label", "Choisir la p\xE9riode");
     more.textContent = "\u22EE";
-    more.addEventListener("click", () => {
-      this.menuOpen = !this.menuOpen;
+    more.setAttribute("aria-label", "Choisir la p\xE9riode");
+    more.addEventListener("click", () => this.openPicker());
+    card.append(calendar, block, now, previous, next, more);
+    const style = document.createElement("style");
+    style.textContent = `:host{display:block}.toolbar{min-height:56px;padding:0 12px;display:flex;align-items:center;gap:10px}.calendar,.icon{border:0;background:transparent;color:var(--primary-text-color);font:inherit;cursor:pointer}.calendar ha-icon{--mdc-icon-size:23px}.dates{font-weight:600;white-space:nowrap}.subtitle{font-size:.78rem;color:var(--secondary-text-color)}.now{margin-left:auto;border:0;border-radius:20px;padding:9px 14px;background:color-mix(in srgb,var(--primary-color) 14%,transparent);color:var(--primary-color);font:inherit;font-weight:600;cursor:pointer}.icon{font-size:30px;width:30px}.backdrop{position:fixed;z-index:99;inset:0;background:#0004;display:grid;place-items:center}.picker{width:min(760px,94vw);min-height:410px;background:var(--card-background-color);border-radius:20px;box-shadow:0 12px 35px #0006;display:grid;grid-template-columns:210px 1fr;overflow:hidden}.presets{padding:14px;border-right:1px solid var(--divider-color);display:flex;flex-direction:column;gap:2px}.presets button{border:0;background:transparent;color:var(--primary-text-color);font:inherit;text-align:left;padding:10px;border-radius:8px;cursor:pointer}.presets button:hover{background:color-mix(in srgb,var(--primary-color) 12%,transparent)}.form{padding:28px;display:flex;flex-direction:column;gap:20px}.form h3{margin:0}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fields label{display:flex;flex-direction:column;gap:6px;color:var(--secondary-text-color);font-size:.85rem}.fields input{font:inherit;padding:10px;border:1px solid var(--divider-color);border-radius:8px;color:var(--primary-text-color);background:var(--card-background-color)}.actions{margin-top:auto;display:flex;justify-content:flex-end;gap:12px}.actions button{border:0;border-radius:22px;padding:10px 16px;font:inherit;cursor:pointer}.apply{background:var(--primary-color);color:var(--text-primary-color)}@media(max-width:600px){.picker{grid-template-columns:1fr;max-height:90vh;overflow:auto}.presets{border-right:0;border-bottom:1px solid var(--divider-color);display:grid;grid-template-columns:1fr 1fr}.dates{font-size:.92rem}.now{padding:8px}.icon{width:25px}}`;
+    root.append(style, card);
+    if (this.pickerOpen) this.renderPicker(root);
+  }
+  renderPicker(root) {
+    const backdrop = document.createElement("div");
+    backdrop.className = "backdrop";
+    const picker = document.createElement("div");
+    picker.className = "picker";
+    picker.addEventListener("click", (event) => event.stopPropagation());
+    const list = document.createElement("div");
+    list.className = "presets";
+    presets.forEach((preset) => {
+      const button = document.createElement("button");
+      button.textContent = preset.label;
+      button.addEventListener("click", () => {
+        const now = /* @__PURE__ */ new Date();
+        const start2 = preset.start(now);
+        const end2 = preset.label === "Hier" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : now;
+        this.selectRange(start2, end2);
+      });
+      list.append(button);
+    });
+    const form = document.createElement("div");
+    form.className = "form";
+    const title = document.createElement("h3");
+    title.textContent = "S\xE9lectionner une p\xE9riode";
+    const fields = document.createElement("div");
+    fields.className = "fields";
+    const start = document.createElement("input");
+    start.type = "date";
+    start.value = isoDate(this.selection.start);
+    const end = document.createElement("input");
+    end.type = "date";
+    end.value = isoDate(this.selection.end);
+    for (const [label, input] of [["Du", start], ["Au", end]]) {
+      const wrapper = document.createElement("label");
+      wrapper.textContent = label;
+      wrapper.append(input);
+      fields.append(wrapper);
+    }
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const cancel = document.createElement("button");
+    cancel.textContent = "Annuler";
+    cancel.addEventListener("click", () => {
+      this.pickerOpen = false;
       this.render();
     });
-    const menu = document.createElement("div");
-    menu.className = "menu";
-    menu.hidden = !this.menuOpen;
-    orderedPeriods.forEach((period) => {
-      const button = document.createElement("button");
-      button.textContent = labels[period];
-      button.setAttribute("aria-pressed", String(period === this.selection.period));
-      button.addEventListener("click", () => this.select(period));
-      menu.append(button);
+    const apply = document.createElement("button");
+    apply.className = "apply";
+    apply.textContent = "S\xE9lectionner";
+    apply.addEventListener("click", () => {
+      const from = /* @__PURE__ */ new Date(`${start.value}T00:00:00`), to = /* @__PURE__ */ new Date(`${end.value}T23:59:59`);
+      if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) this.selectRange(from, to);
     });
-    const style = document.createElement("style");
-    style.textContent = `:host{display:block;position:relative}.toolbar{min-height:56px;padding:0 10px;display:flex;align-items:center;gap:6px;box-shadow:var(--ha-card-box-shadow,0 2px 6px #0002)}.range{display:flex;align-items:center;gap:14px;flex:1;min-width:0}.range ha-icon{--mdc-icon-size:22px}.dates{font-size:1.08rem;font-weight:600;white-space:nowrap}.period{font-size:.78rem;font-weight:400;color:var(--secondary-text-color)}button{font:inherit;border:0;cursor:pointer}.now{background:color-mix(in srgb,var(--primary-color) 14%,transparent);color:var(--primary-color);font-weight:600;border-radius:20px;padding:9px 14px}.icon{background:transparent;color:var(--primary-text-color);font-size:30px;width:35px;height:42px;line-height:1}.menu{position:absolute;right:8px;top:62px;z-index:2;background:var(--card-background-color);border-radius:12px;box-shadow:0 5px 18px #0004;padding:6px;display:flex;flex-direction:column;min-width:130px}.menu button{background:transparent;color:var(--primary-text-color);padding:10px 14px;text-align:left;border-radius:8px}.menu button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary-color) 15%,transparent);color:var(--primary-color);font-weight:600}@media(max-width:520px){.toolbar{gap:1px}.dates{font-size:.92rem}.now{padding:8px}.icon{width:29px}.range{gap:8px}}`;
-    card.append(range, now, previous, next, more);
-    root.append(style, card, menu);
+    actions.append(cancel, apply);
+    form.append(title, fields, actions);
+    picker.append(list, form);
+    backdrop.append(picker);
+    backdrop.addEventListener("click", () => {
+      this.pickerOpen = false;
+      this.render();
+    });
+    root.append(backdrop);
   }
 };
 if (!customElements.get("weather-station-period-selector")) customElements.define("weather-station-period-selector", WeatherStationPeriodSelector);
