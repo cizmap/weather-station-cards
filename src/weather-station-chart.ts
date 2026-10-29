@@ -1,4 +1,4 @@
-import { historyPoints, periodStart, type HistoryPoint, type HistorySample } from "./history.js";
+import { downsample, historyPoints, periodStart, type HistoryPoint, type HistorySample } from "./history.js";
 import { weatherPeriodStore, type WeatherPeriod } from "./period-store.js";
 
 interface HomeAssistant {
@@ -49,7 +49,7 @@ class WeatherStationChart extends HTMLElement {
         minimal_response: true,
         no_attributes: true
       });
-      this.points = historyPoints(history[this.config.entity] ?? []);
+      this.points = downsample(historyPoints(history[this.config.entity] ?? []), 240);
     } catch {
       this.points = [];
     } finally { this.loading = false; this.render(); }

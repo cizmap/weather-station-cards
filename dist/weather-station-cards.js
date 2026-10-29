@@ -83,6 +83,10 @@ function historyPoints(samples) {
     return Number.isFinite(value) && typeof seconds === "number" ? [{ time: seconds * 1e3, value }] : [];
   });
 }
+function downsample(points, maximum) {
+  if (points.length <= maximum || maximum < 3) return points;
+  return Array.from({ length: maximum }, (_, index) => points[Math.round(index * (points.length - 1) / (maximum - 1))]);
+}
 function periodStart(period, now = /* @__PURE__ */ new Date()) {
   const days = { day: 1, week: 7, month: 31, year: 365 };
   return new Date(now.getTime() - days[period] * 24 * 60 * 60 * 1e3);
@@ -129,7 +133,7 @@ var WeatherStationChart = class extends HTMLElement {
         minimal_response: true,
         no_attributes: true
       });
-      this.points = historyPoints(history[this.config.entity] ?? []);
+      this.points = downsample(historyPoints(history[this.config.entity] ?? []), 240);
     } catch {
       this.points = [];
     } finally {
