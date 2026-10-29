@@ -23,9 +23,17 @@ var PeriodStore = class {
   shift(collectionKey, direction) {
     const current = this.getSelection(collectionKey);
     const delta = milliseconds[current.period];
-    const candidateEnd = new Date(current.end.getTime() + direction * delta);
-    const end = candidateEnd > this.now() ? this.now() : candidateEnd;
-    this.publish(collectionKey, { period: current.period, start: new Date(end.getTime() - delta), end });
+    if (direction < 0) {
+      const end = new Date(current.start);
+      this.publish(collectionKey, { period: current.period, start: new Date(end.getTime() - delta), end });
+      return;
+    }
+    if (current.end.getTime() + delta >= this.now().getTime()) {
+      this.goToNow(collectionKey);
+      return;
+    }
+    const start = new Date(current.end);
+    this.publish(collectionKey, { period: current.period, start, end: new Date(start.getTime() + delta) });
   }
   setRange(collectionKey, start, end) {
     const duration = Math.max(1, end.getTime() - start.getTime());
@@ -48,7 +56,14 @@ var PeriodStore = class {
   }
   forPeriod(period, end) {
     const endCopy = new Date(end);
-    return { period, end: endCopy, start: new Date(endCopy.getTime() - milliseconds[period]) };
+    const start = new Date(end);
+    start.setUTCHours(0, 0, 0, 0);
+    if (period === "week") start.setUTCDate(start.getUTCDate() - (start.getUTCDay() + 6) % 7);
+    if (period === "month") start.setUTCDate(1);
+    if (period === "year") {
+      start.setUTCMonth(0, 1);
+    }
+    return { period, start, end: endCopy };
   }
   publish(collectionKey, selection) {
     this.selections.set(collectionKey, selection);

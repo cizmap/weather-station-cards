@@ -19,8 +19,8 @@ describe("PeriodStore", () => {
     store.shift("station-jardin", -1);
 
     const previous = store.getSelection("station-jardin");
-    expect(previous.start.toISOString()).toBe("2026-10-15T12:00:00.000Z");
-    expect(previous.end.toISOString()).toBe("2026-10-22T12:00:00.000Z");
+    expect(previous.start.toISOString()).toBe("2026-10-19T00:00:00.000Z");
+    expect(previous.end.toISOString()).toBe("2026-10-26T00:00:00.000Z");
 
     store.goToNow("station-jardin");
     expect(store.getSelection("station-jardin").end.toISOString()).toBe("2026-10-29T12:00:00.000Z");
