@@ -19,5 +19,10 @@ describe("weather-station-period-selector", () => {
     week!.click();
 
     expect(weatherPeriodStore.getPeriod("jardin")).toBe("week");
+
+    const now = [...card.shadowRoot!.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Maintenant");
+    now!.click();
+    expect(weatherPeriodStore.getPeriod("jardin")).toBe("day");
   });
 });

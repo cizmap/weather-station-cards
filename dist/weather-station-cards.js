@@ -22,20 +22,20 @@ var PeriodStore = class {
 var weatherPeriodStore = new PeriodStore();
 
 // src/weather-station-period-selector.ts
-var labels = {
-  day: "Jour",
-  week: "Semaine",
-  month: "Mois",
-  year: "Ann\xE9e"
-};
+var labels = { day: "Jour", week: "Semaine", month: "Mois", year: "Ann\xE9e" };
+var orderedPeriods = ["day", "week", "month", "year"];
 var WeatherStationPeriodSelector = class extends HTMLElement {
   config = { collection_key: "default" };
+  period = "day";
+  menuOpen = false;
   unsubscribe;
   setConfig(config) {
     this.config = { collection_key: config.collection_key ?? "default" };
     this.unsubscribe?.();
-    this.unsubscribe = weatherPeriodStore.subscribe(this.config.collection_key, () => this.render());
-    this.render();
+    this.unsubscribe = weatherPeriodStore.subscribe(this.config.collection_key, (period) => {
+      this.period = period;
+      this.render();
+    });
   }
   connectedCallback() {
     this.render();
@@ -47,33 +47,73 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
   getCardSize() {
     return 1;
   }
+  select(period) {
+    this.menuOpen = false;
+    weatherPeriodStore.setPeriod(this.config.collection_key, period);
+  }
+  rangeLabel() {
+    const now = /* @__PURE__ */ new Date();
+    const starts = { day: new Date(now), week: new Date(now.getTime() - 6 * 864e5), month: new Date(now.getTime() - 30 * 864e5), year: new Date(now.getTime() - 364 * 864e5) };
+    const format = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+    return `${format.format(starts[this.period])} \u2013 ${format.format(now)}`;
+  }
   render() {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
-    const active = weatherPeriodStore.getPeriod(this.config.collection_key);
     root.replaceChildren();
-    const style = document.createElement("style");
-    style.textContent = `
-      :host { display: block; }
-      .periods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px; }
-      button { border: 1px solid var(--divider-color); border-radius: 18px; padding: 8px 4px; color: var(--primary-text-color); background: var(--card-background-color); font: inherit; cursor: pointer; }
-      button[aria-pressed="true"] { color: var(--text-primary-color); background: var(--primary-color); border-color: var(--primary-color); }
-    `;
-    const container = document.createElement("div");
-    container.className = "periods";
-    Object.keys(labels).forEach((period) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = labels[period];
-      button.setAttribute("aria-pressed", String(period === active));
-      button.addEventListener("click", () => weatherPeriodStore.setPeriod(this.config.collection_key, period));
-      container.append(button);
+    const card = document.createElement("ha-card");
+    card.className = "toolbar";
+    const range = document.createElement("div");
+    range.className = "range";
+    const icon = document.createElement("ha-icon");
+    icon.setAttribute("icon", "mdi:calendar");
+    const dates = document.createElement("div");
+    const main = document.createElement("div");
+    main.className = "dates";
+    main.textContent = this.rangeLabel();
+    const secondary = document.createElement("div");
+    secondary.className = "period";
+    secondary.textContent = labels[this.period];
+    dates.append(main, secondary);
+    range.append(icon, dates);
+    const now = document.createElement("button");
+    now.className = "now";
+    now.textContent = "Maintenant";
+    now.addEventListener("click", () => this.select("day"));
+    const previous = document.createElement("button");
+    previous.className = "icon";
+    previous.setAttribute("aria-label", "P\xE9riode pr\xE9c\xE9dente");
+    previous.textContent = "\u2039";
+    previous.addEventListener("click", () => this.select(orderedPeriods[Math.max(0, orderedPeriods.indexOf(this.period) - 1)]));
+    const next = document.createElement("button");
+    next.className = "icon";
+    next.setAttribute("aria-label", "P\xE9riode suivante");
+    next.textContent = "\u203A";
+    next.addEventListener("click", () => this.select(orderedPeriods[Math.min(orderedPeriods.length - 1, orderedPeriods.indexOf(this.period) + 1)]));
+    const more = document.createElement("button");
+    more.className = "icon";
+    more.setAttribute("aria-label", "Choisir la p\xE9riode");
+    more.textContent = "\u22EE";
+    more.addEventListener("click", () => {
+      this.menuOpen = !this.menuOpen;
+      this.render();
     });
-    root.append(style, container);
+    const menu = document.createElement("div");
+    menu.className = "menu";
+    menu.hidden = !this.menuOpen;
+    orderedPeriods.forEach((period) => {
+      const button = document.createElement("button");
+      button.textContent = labels[period];
+      button.setAttribute("aria-pressed", String(period === this.period));
+      button.addEventListener("click", () => this.select(period));
+      menu.append(button);
+    });
+    const style = document.createElement("style");
+    style.textContent = `:host{display:block;position:relative}.toolbar{min-height:56px;padding:0 10px;display:flex;align-items:center;gap:6px;box-shadow:var(--ha-card-box-shadow,0 2px 6px #0002)}.range{display:flex;align-items:center;gap:14px;flex:1;min-width:0}.range ha-icon{--mdc-icon-size:22px}.dates{font-size:1.08rem;font-weight:600;white-space:nowrap}.period{font-size:.78rem;font-weight:400;color:var(--secondary-text-color)}button{font:inherit;border:0;cursor:pointer}.now{background:color-mix(in srgb,var(--primary-color) 14%,transparent);color:var(--primary-color);font-weight:600;border-radius:20px;padding:9px 14px}.icon{background:transparent;color:var(--primary-text-color);font-size:30px;width:35px;height:42px;line-height:1}.menu{position:absolute;right:8px;top:62px;z-index:2;background:var(--card-background-color);border-radius:12px;box-shadow:0 5px 18px #0004;padding:6px;display:flex;flex-direction:column;min-width:130px}.menu button{background:transparent;color:var(--primary-text-color);padding:10px 14px;text-align:left;border-radius:8px}.menu button[aria-pressed="true"]{background:color-mix(in srgb,var(--primary-color) 15%,transparent);color:var(--primary-color);font-weight:600}@media(max-width:520px){.toolbar{gap:1px}.dates{font-size:.92rem}.now{padding:8px}.icon{width:29px}.range{gap:8px}}`;
+    card.append(range, now, previous, next, more);
+    root.append(style, card, menu);
   }
 };
-if (!customElements.get("weather-station-period-selector")) {
-  customElements.define("weather-station-period-selector", WeatherStationPeriodSelector);
-}
+if (!customElements.get("weather-station-period-selector")) customElements.define("weather-station-period-selector", WeatherStationPeriodSelector);
 
 // src/history.ts
 function historyPoints(samples) {
