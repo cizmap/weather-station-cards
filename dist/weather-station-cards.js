@@ -119,8 +119,9 @@ var WeatherStationChart = class extends HTMLElement {
   unsubscribe;
   loading = false;
   set hass(value) {
+    const initialConnection = !this.hassValue;
     this.hassValue = value;
-    void this.refresh();
+    if (initialConnection) void this.refresh();
   }
   setConfig(config) {
     if (!config.entity) throw new Error("entity is required");
@@ -216,9 +217,14 @@ var WeatherStationRainSummary = class extends HTMLElement {
   hassValue;
   period = "day";
   unsubscribe;
+  stateValue = "";
   set hass(value) {
+    const entity = this.config?.[field[this.period]];
+    const nextValue = entity ? value.states[entity]?.state ?? "" : "";
+    const changed = !this.hassValue || nextValue !== this.stateValue;
     this.hassValue = value;
-    this.render();
+    this.stateValue = nextValue;
+    if (changed) this.render();
   }
   setConfig(config) {
     for (const key of Object.values(field)) if (!config[key]) throw new Error(`${key} is required`);
@@ -268,8 +274,9 @@ var WeatherStationRainChart = class extends HTMLElement {
   unsubscribe;
   loading = false;
   set hass(value) {
+    const initialConnection = !this.hassValue;
     this.hassValue = value;
-    void this.refresh();
+    if (initialConnection) void this.refresh();
   }
   setConfig(config) {
     if (!config.entity) throw new Error("entity is required");
@@ -361,9 +368,14 @@ function cardinal(degrees) {
 var WeatherStationWindCompass = class extends HTMLElement {
   config;
   hassValue;
+  stateSignature = "";
   set hass(value) {
+    const ids = this.config ? [this.config.direction_entity, this.config.speed_entity, this.config.gust_entity ?? ""] : [];
+    const signature = ids.map((id) => value.states[id]?.state ?? "").join("|");
+    const changed = !this.hassValue || signature !== this.stateSignature;
     this.hassValue = value;
-    this.render();
+    this.stateSignature = signature;
+    if (changed) this.render();
   }
   setConfig(config) {
     if (!config.direction_entity || !config.speed_entity) throw new Error("direction_entity and speed_entity are required");
@@ -416,8 +428,9 @@ var WeatherStationWindRose = class extends HTMLElement {
   unsub;
   loading = false;
   set hass(value) {
+    const initialConnection = !this.hassValue;
     this.hassValue = value;
-    void this.refresh();
+    if (initialConnection) void this.refresh();
   }
   setConfig(config) {
     if (!config.entity) throw new Error("entity is required");

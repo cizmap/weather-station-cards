@@ -6,7 +6,7 @@ const labels: Record<WeatherPeriod,string>={day:"24 h",week:"7 jours",month:"31 
 const compass=["N","NE","E","SE","S","SO","O","NO"];
 class WeatherStationWindRose extends HTMLElement {
  private config?:Config;private hassValue?:Hass;private bins:number[]=[];private period:WeatherPeriod="day";private unsub?:()=>void;private loading=false;
- set hass(value:Hass){this.hassValue=value;void this.refresh();}
+ set hass(value:Hass){const initialConnection=!this.hassValue;this.hassValue=value;if(initialConnection)void this.refresh();}
  setConfig(config:Config){if(!config.entity)throw new Error("entity is required");this.config=config;this.unsub?.();this.unsub=weatherPeriodStore.subscribe(config.collection_key??"default",p=>{this.period=p;void this.refresh();});}
  disconnectedCallback(){this.unsub?.();} getCardSize(){return 3;}
  private async refresh(){if(!this.hassValue||!this.config||this.loading)return;this.loading=true;this.render();try{const h=await this.hassValue.callWS({type:"history/history_during_period",start_time:periodStart(this.period).toISOString(),end_time:new Date().toISOString(),entity_ids:[this.config.entity],minimal_response:true,no_attributes:true});this.bins=windRoseBins(historyPoints(h[this.config.entity]??[]));}catch{this.bins=[]}finally{this.loading=false;this.render();}}

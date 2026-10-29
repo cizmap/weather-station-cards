@@ -23,7 +23,11 @@ class WeatherStationChart extends HTMLElement {
   private unsubscribe?: () => void;
   private loading = false;
 
-  set hass(value: HomeAssistant) { this.hassValue = value; void this.refresh(); }
+  set hass(value: HomeAssistant) {
+    const initialConnection = !this.hassValue;
+    this.hassValue = value;
+    if (initialConnection) void this.refresh();
+  }
   setConfig(config: ChartConfig): void {
     if (!config.entity) throw new Error("entity is required");
     this.config = { ...config, entity: config.entity };

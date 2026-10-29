@@ -7,7 +7,11 @@ const labels: Record<WeatherPeriod, string> = { day: "24 h", week: "7 jours", mo
 
 class WeatherStationRainChart extends HTMLElement {
   private config?: RainChartConfig; private hassValue?: HomeAssistant; private bars: RainBar[]=[]; private period: WeatherPeriod="day"; private unsubscribe?:()=>void; private loading=false;
-  set hass(value: HomeAssistant){this.hassValue=value;void this.refresh();}
+  set hass(value: HomeAssistant){
+    const initialConnection=!this.hassValue;
+    this.hassValue=value;
+    if(initialConnection) void this.refresh();
+  }
   setConfig(config: RainChartConfig){if(!config.entity)throw new Error("entity is required");this.config=config;this.unsubscribe?.();this.unsubscribe=weatherPeriodStore.subscribe(config.collection_key??"default",period=>{this.period=period;void this.refresh();});}
   disconnectedCallback(){this.unsubscribe?.();}
   getCardSize(){return 3;}

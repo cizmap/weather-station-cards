@@ -6,8 +6,15 @@ const labels: Record<WeatherPeriod, string> = { day: "Aujourd’hui", week: "Cet
 const field: Record<WeatherPeriod, keyof RainConfig> = { day: "daily_entity", week: "weekly_entity", month: "monthly_entity", year: "yearly_entity" };
 
 class WeatherStationRainSummary extends HTMLElement {
-  private config?: RainConfig; private hassValue?: HomeAssistant; private period: WeatherPeriod = "day"; private unsubscribe?: () => void;
-  set hass(value: HomeAssistant) { this.hassValue=value; this.render(); }
+  private config?: RainConfig; private hassValue?: HomeAssistant; private period: WeatherPeriod = "day"; private unsubscribe?: () => void; private stateValue = "";
+  set hass(value: HomeAssistant) {
+    const entity = this.config?.[field[this.period]];
+    const nextValue = entity ? value.states[entity]?.state ?? "" : "";
+    const changed = !this.hassValue || nextValue !== this.stateValue;
+    this.hassValue = value;
+    this.stateValue = nextValue;
+    if (changed) this.render();
+  }
   setConfig(config: RainConfig): void { for(const key of Object.values(field)) if(!config[key]) throw new Error(`${key} is required`); this.config=config; this.unsubscribe?.(); this.unsubscribe=weatherPeriodStore.subscribe(config.collection_key??"default",period=>{this.period=period;this.render();}); }
   disconnectedCallback(): void { this.unsubscribe?.(); }
   getCardSize(): number { return 2; }

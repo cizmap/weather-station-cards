@@ -2,8 +2,15 @@ interface HomeAssistant { states: Record<string, { state: string; attributes: Re
 interface WindConfig { direction_entity: string; speed_entity: string; gust_entity?: string; title?: string; }
 function cardinal(degrees: number): string { return ["N","NE","E","SE","S","SO","O","NO"][Math.round((((degrees%360)+360)%360)/45)%8]; }
 class WeatherStationWindCompass extends HTMLElement {
-  private config?: WindConfig; private hassValue?: HomeAssistant;
-  set hass(value: HomeAssistant) { this.hassValue=value; this.render(); }
+  private config?: WindConfig; private hassValue?: HomeAssistant; private stateSignature = "";
+  set hass(value: HomeAssistant) {
+    const ids = this.config ? [this.config.direction_entity, this.config.speed_entity, this.config.gust_entity ?? ""] : [];
+    const signature = ids.map((id) => value.states[id]?.state ?? "").join("|");
+    const changed = !this.hassValue || signature !== this.stateSignature;
+    this.hassValue = value;
+    this.stateSignature = signature;
+    if (changed) this.render();
+  }
   setConfig(config: WindConfig): void { if(!config.direction_entity||!config.speed_entity) throw new Error("direction_entity and speed_entity are required");this.config=config;this.render(); }
   getCardSize(): number { return 3; }
   private render(): void { const root=this.shadowRoot??this.attachShadow({mode:"open"});root.replaceChildren();const card=document.createElement("ha-card");const direction=Number(this.hassValue?.states[this.config?.direction_entity??""]?.state);const speed=this.hassValue?.states[this.config?.speed_entity??""];const gust=this.config?.gust_entity?this.hassValue?.states[this.config.gust_entity]:undefined;const title=document.createElement("div");title.className="title";title.textContent=this.config?.title??"Vent";const compass=document.createElement("div");compass.className="compass";const arrow=document.createElement("div");arrow.className="arrow";arrow.style.transform=`rotate(${Number.isFinite(direction)?direction:0}deg)`;compass.append(arrow);const center=document.createElement("div");center.className="center";center.textContent=Number.isFinite(direction)?`${Math.round(direction)}°\n${cardinal(direction)}`:"—";compass.append(center);const details=document.createElement("div");details.className="details";details.textContent=`${speed?.state??"—"} ${speed?.attributes.unit_of_measurement??"km/h"}  ·  rafales ${gust?.state??"—"} ${gust?.attributes.unit_of_measurement??"km/h"}`;const style=document.createElement("style");style.textContent=":host{display:block}ha-card{padding:16px;text-align:center}.title{color:var(--secondary-text-color);text-align:left}.compass{width:150px;height:150px;border:1px solid var(--divider-color);border-radius:50%;margin:12px auto;position:relative;background:radial-gradient(circle,transparent 58%,color-mix(in srgb,var(--primary-color) 12%,transparent) 59%,transparent 61%)}.arrow{position:absolute;top:18px;left:70px;width:10px;height:57px;background:var(--primary-color);clip-path:polygon(50% 0,100% 25%,65% 25%,65% 100%,35% 100%,35% 25%,0 25%);transform-origin:5px 57px}.center{position:absolute;inset:50px 0 auto;white-space:pre-line;font-size:1.1rem;font-weight:700}.details{color:var(--secondary-text-color);font-size:.9rem}";card.append(title,compass,details);root.append(style,card); }
