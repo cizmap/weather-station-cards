@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { downsample, historyPoints, periodStart } from "../src/history.js";
+import { downsample, historyPoints, periodStart, rainBars } from "../src/history.js";
 
 describe("history helpers", () => {
   it("keeps numeric history samples and returns their timestamps", () => {
@@ -17,8 +17,12 @@ describe("history helpers", () => {
     expect(periodStart("week", now).toISOString()).toBe("2026-10-22T12:00:00.000Z");
   });
 
-  it("keeps the first and final values when reducing a long series", () => {
-    const points = [0, 1, 2, 3, 4].map((value) => ({ time: value, value }));
-    expect(downsample(points, 3)).toEqual([points[0], points[2], points[4]]);
+  it("turns daily cumulative rainfall into one maximum bar per day", () => {
+    const bars = rainBars([
+      { time: Date.parse("2026-10-27T09:00:00Z"), value: 0.4 },
+      { time: Date.parse("2026-10-27T18:00:00Z"), value: 1.2 },
+      { time: Date.parse("2026-10-28T10:00:00Z"), value: 0.3 }
+    ]);
+    expect(bars.map((bar) => bar.value)).toEqual([1.2, 0.3]);
   });
 });

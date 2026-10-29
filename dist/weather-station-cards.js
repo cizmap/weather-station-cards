@@ -83,6 +83,15 @@ function historyPoints(samples) {
     return Number.isFinite(value) && typeof seconds === "number" ? [{ time: seconds * 1e3, value }] : [];
   });
 }
+function rainBars(points) {
+  const grouped = /* @__PURE__ */ new Map();
+  for (const point of points) {
+    const label = new Date(point.time).toLocaleDateString("sv-SE");
+    const existing = grouped.get(label);
+    if (!existing || point.value > existing.value) grouped.set(label, { label, time: point.time, value: point.value });
+  }
+  return [...grouped.values()];
+}
 function downsample(points, maximum) {
   if (points.length <= maximum || maximum < 3) return points;
   return Array.from({ length: maximum }, (_, index) => points[Math.round(index * (points.length - 1) / (maximum - 1))]);
@@ -241,6 +250,102 @@ var WeatherStationRainSummary = class extends HTMLElement {
 };
 if (!customElements.get("weather-station-rain-summary")) customElements.define("weather-station-rain-summary", WeatherStationRainSummary);
 
+// src/weather-station-rain-chart.ts
+var labels4 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+var WeatherStationRainChart = class extends HTMLElement {
+  config;
+  hassValue;
+  bars = [];
+  period = "day";
+  unsubscribe;
+  loading = false;
+  set hass(value) {
+    this.hassValue = value;
+    void this.refresh();
+  }
+  setConfig(config) {
+    if (!config.entity) throw new Error("entity is required");
+    this.config = config;
+    this.unsubscribe?.();
+    this.unsubscribe = weatherPeriodStore.subscribe(config.collection_key ?? "default", (period) => {
+      this.period = period;
+      void this.refresh();
+    });
+  }
+  disconnectedCallback() {
+    this.unsubscribe?.();
+  }
+  getCardSize() {
+    return 3;
+  }
+  async refresh() {
+    if (!this.hassValue || !this.config || this.loading) return;
+    this.loading = true;
+    this.render();
+    try {
+      const history = await this.hassValue.callWS({ type: "history/history_during_period", start_time: periodStart(this.period).toISOString(), end_time: (/* @__PURE__ */ new Date()).toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
+      this.bars = rainBars(historyPoints(history[this.config.entity] ?? []));
+    } catch {
+      this.bars = [];
+    } finally {
+      this.loading = false;
+      this.render();
+    }
+  }
+  render() {
+    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    root.replaceChildren();
+    const card = document.createElement("ha-card");
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = `${this.config?.title ?? "Pluie"} \xB7 ${labels4[this.period]}`;
+    const graph = this.graph();
+    const style = document.createElement("style");
+    style.textContent = ":host{display:block}ha-card{padding:16px}.title{color:var(--secondary-text-color);font-size:.9rem;margin-bottom:10px}svg{display:block;width:100%;height:150px}.bar{fill:#2196f3}.grid{stroke:var(--divider-color);stroke-width:1}.empty{fill:var(--secondary-text-color);font-size:14px}";
+    card.append(title, graph);
+    root.append(style, card);
+  }
+  graph() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 320 150");
+    if (this.loading || !this.bars.length) {
+      const text = document.createElementNS(svg.namespaceURI, "text");
+      text.setAttribute("x", "12");
+      text.setAttribute("y", "75");
+      text.setAttribute("class", "empty");
+      text.textContent = this.loading ? "Chargement\u2026" : "Pas de pluie enregistr\xE9e";
+      svg.append(text);
+      return svg;
+    }
+    const max = Math.max(...this.bars.map((b) => b.value), 0.1), width = 312 / this.bars.length;
+    [30, 75, 120].forEach((y) => {
+      const line = document.createElementNS(svg.namespaceURI, "line");
+      line.setAttribute("x1", "0");
+      line.setAttribute("x2", "320");
+      line.setAttribute("y1", String(y));
+      line.setAttribute("y2", String(y));
+      line.setAttribute("class", "grid");
+      svg.append(line);
+    });
+    this.bars.forEach((bar, index) => {
+      const rect = document.createElementNS(svg.namespaceURI, "rect");
+      const h = 110 * bar.value / max;
+      rect.setAttribute("x", String(4 + index * width));
+      rect.setAttribute("y", String(125 - h));
+      rect.setAttribute("width", String(Math.max(2, width - 2)));
+      rect.setAttribute("height", String(h));
+      rect.setAttribute("rx", "2");
+      rect.setAttribute("class", "bar");
+      const title = document.createElementNS(svg.namespaceURI, "title");
+      title.textContent = `${bar.label}: ${bar.value.toFixed(1)} mm`;
+      rect.append(title);
+      svg.append(rect);
+    });
+    return svg;
+  }
+};
+if (!customElements.get("weather-station-rain-chart")) customElements.define("weather-station-rain-chart", WeatherStationRainChart);
+
 // src/weather-station-wind-compass.ts
 function cardinal(degrees) {
   return ["N", "NE", "E", "SE", "S", "SO", "O", "NO"][Math.round((degrees % 360 + 360) % 360 / 45) % 8];
@@ -297,6 +402,7 @@ var cards = [
   { type: "weather-station-period-selector", name: "Weather Station Period Selector", description: "Synchronises the selected weather period across Weather Station Cards." },
   { type: "weather-station-chart", name: "Weather Station Chart", description: "Plots a weather-station sensor over the shared period." },
   { type: "weather-station-rain-summary", name: "Weather Station Rain Summary", description: "Shows rainfall total for the selected shared period." },
+  { type: "weather-station-rain-chart", name: "Weather Station Rain Chart", description: "Displays daily rainfall bars for the shared period." },
   { type: "weather-station-wind-compass", name: "Weather Station Wind Compass", description: "Shows the current wind direction, speed and gusts." }
 ];
 window.customCards = window.customCards ?? [];

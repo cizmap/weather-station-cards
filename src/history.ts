@@ -19,6 +19,22 @@ export function historyPoints(samples: HistorySample[]): HistoryPoint[] {
   });
 }
 
+export interface RainBar {
+  label: string;
+  time: number;
+  value: number;
+}
+
+export function rainBars(points: HistoryPoint[]): RainBar[] {
+  const grouped = new Map<string, RainBar>();
+  for (const point of points) {
+    const label = new Date(point.time).toLocaleDateString("sv-SE");
+    const existing = grouped.get(label);
+    if (!existing || point.value > existing.value) grouped.set(label, { label, time: point.time, value: point.value });
+  }
+  return [...grouped.values()];
+}
+
 export function downsample(points: HistoryPoint[], maximum: number): HistoryPoint[] {
   if (points.length <= maximum || maximum < 3) return points;
   return Array.from({ length: maximum }, (_, index) => points[Math.round(index * (points.length - 1) / (maximum - 1))]);
