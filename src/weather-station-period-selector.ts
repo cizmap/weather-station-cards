@@ -14,6 +14,7 @@ const presets: Preset[] = [
   { label: "30 derniers jours", start: n => new Date(n.getTime() - 29 * 86400000) },
   { label: "365 derniers jours", start: n => new Date(n.getTime() - 364 * 86400000) }
 ];
+const presetPeriod: Record<string, WeatherPeriod> = { "Aujourd’hui":"day", "Hier":"day", "Cette semaine":"week", "Ce mois-ci":"month", "Ce trimestre":"month", "Cette année":"year", "7 derniers jours":"week", "30 derniers jours":"month", "365 derniers jours":"year" };
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
 class WeatherStationPeriodSelector extends HTMLElement {
@@ -27,7 +28,7 @@ class WeatherStationPeriodSelector extends HTMLElement {
   getCardSize(): number { return 1; }
   private rangeLabel(): string { const f = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" }); return `${f.format(this.selection.start)} – ${f.format(this.selection.end)}`; }
   private openPicker(): void { this.pickerOpen = true; this.render(); }
-  private selectRange(start: Date, end: Date): void { this.pickerOpen = false; weatherPeriodStore.setRange(this.config.collection_key, start, end); }
+  private selectRange(start: Date, end: Date, period?: WeatherPeriod): void { this.pickerOpen = false; weatherPeriodStore.setRange(this.config.collection_key, start, end, period); }
 
   private render(): void {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" }); root.replaceChildren();
@@ -45,7 +46,7 @@ class WeatherStationPeriodSelector extends HTMLElement {
 
   private renderPicker(root: ShadowRoot): void {
     const backdrop = document.createElement("div"); backdrop.className = "backdrop"; const picker = document.createElement("div"); picker.className = "picker"; picker.addEventListener("click", event => event.stopPropagation());
-    const list = document.createElement("div"); list.className = "presets"; presets.forEach(preset => { const button = document.createElement("button"); button.textContent = preset.label; button.addEventListener("click", () => { const now = new Date(); const start = preset.start(now); const end = preset.label === "Hier" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : now; this.selectRange(start, end); }); list.append(button); });
+    const list = document.createElement("div"); list.className = "presets"; presets.forEach(preset => { const button = document.createElement("button"); button.textContent = preset.label; button.addEventListener("click", () => { const now = new Date(); const start = preset.start(now); const end = preset.label === "Hier" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : now; this.selectRange(start, end, presetPeriod[preset.label]); }); list.append(button); });
     const form = document.createElement("div"); form.className = "form"; const title = document.createElement("h3"); title.textContent = "Sélectionner une période"; const fields = document.createElement("div"); fields.className = "fields"; const start = document.createElement("input"); start.type = "date"; start.value = isoDate(this.selection.start); const end = document.createElement("input"); end.type = "date"; end.value = isoDate(this.selection.end); for (const [label, input] of [["Du", start], ["Au", end]] as const) { const wrapper=document.createElement("label"); wrapper.textContent=label; wrapper.append(input); fields.append(wrapper); }
     const actions = document.createElement("div"); actions.className = "actions"; const cancel=document.createElement("button"); cancel.textContent="Annuler"; cancel.addEventListener("click",()=>{this.pickerOpen=false;this.render();}); const apply=document.createElement("button"); apply.className="apply";apply.textContent="Sélectionner";apply.addEventListener("click",()=>{const from=new Date(`${start.value}T00:00:00`),to=new Date(`${end.value}T23:59:59`);if(!Number.isNaN(from.getTime())&&!Number.isNaN(to.getTime())&&from<=to)this.selectRange(from,to);}); actions.append(cancel,apply); form.append(title,fields,actions); picker.append(list,form); backdrop.append(picker); backdrop.addEventListener("click",()=>{this.pickerOpen=false;this.render();}); root.append(backdrop);
   }

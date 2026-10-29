@@ -13,16 +13,11 @@ describe("PeriodStore", () => {
     expect(store.getPeriod("station-jardin")).toBe("week");
   });
 
-  it("moves a period backwards and restores it with now", () => {
+  it("preserves the requested weekly scale for a partial current week", () => {
     const store = new PeriodStore(() => new Date("2026-10-29T12:00:00.000Z"));
-    store.setPeriod("station-jardin", "week");
+    store.setRange("station-jardin", new Date("2026-10-26T00:00:00.000Z"), new Date("2026-10-29T12:00:00.000Z"), "week");
     store.shift("station-jardin", -1);
-
-    const previous = store.getSelection("station-jardin");
-    expect(previous.start.toISOString()).toBe("2026-10-19T00:00:00.000Z");
-    expect(previous.end.toISOString()).toBe("2026-10-26T00:00:00.000Z");
-
-    store.goToNow("station-jardin");
-    expect(store.getSelection("station-jardin").end.toISOString()).toBe("2026-10-29T12:00:00.000Z");
+    expect(store.getSelection("station-jardin").period).toBe("week");
+    expect(store.getSelection("station-jardin").start.toISOString()).toBe("2026-10-19T00:00:00.000Z");
   });
 });

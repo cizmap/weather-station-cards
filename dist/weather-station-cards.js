@@ -35,9 +35,9 @@ var PeriodStore = class {
     const start = new Date(current.end);
     this.publish(collectionKey, { period: current.period, start, end: new Date(start.getTime() + delta) });
   }
-  setRange(collectionKey, start, end) {
+  setRange(collectionKey, start, end, forcedPeriod) {
     const duration = Math.max(1, end.getTime() - start.getTime());
-    const period = Object.entries(milliseconds).reduce((closest, [name, size]) => Math.abs(size - duration) < Math.abs(milliseconds[closest] - duration) ? name : closest, "day");
+    const period = forcedPeriod ?? Object.entries(milliseconds).reduce((closest, [name, size]) => Math.abs(size - duration) < Math.abs(milliseconds[closest] - duration) ? name : closest, "day");
     this.publish(collectionKey, { period, start: new Date(start), end: new Date(end) });
   }
   subscribe(collectionKey, listener) {
@@ -86,6 +86,7 @@ var presets = [
   { label: "30 derniers jours", start: (n) => new Date(n.getTime() - 29 * 864e5) },
   { label: "365 derniers jours", start: (n) => new Date(n.getTime() - 364 * 864e5) }
 ];
+var presetPeriod = { "Aujourd\u2019hui": "day", "Hier": "day", "Cette semaine": "week", "Ce mois-ci": "month", "Ce trimestre": "month", "Cette ann\xE9e": "year", "7 derniers jours": "week", "30 derniers jours": "month", "365 derniers jours": "year" };
 var isoDate = (date) => date.toISOString().slice(0, 10);
 var WeatherStationPeriodSelector = class extends HTMLElement {
   config = { collection_key: "default" };
@@ -118,9 +119,9 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
     this.pickerOpen = true;
     this.render();
   }
-  selectRange(start, end) {
+  selectRange(start, end, period) {
     this.pickerOpen = false;
-    weatherPeriodStore.setRange(this.config.collection_key, start, end);
+    weatherPeriodStore.setRange(this.config.collection_key, start, end, period);
   }
   render() {
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
@@ -180,7 +181,7 @@ var WeatherStationPeriodSelector = class extends HTMLElement {
         const now = /* @__PURE__ */ new Date();
         const start2 = preset.start(now);
         const end2 = preset.label === "Hier" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : now;
-        this.selectRange(start2, end2);
+        this.selectRange(start2, end2, presetPeriod[preset.label]);
       });
       list.append(button);
     });

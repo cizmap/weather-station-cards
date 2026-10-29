@@ -29,9 +29,9 @@ export class PeriodStore {
     const start = new Date(current.end);
     this.publish(collectionKey, { period: current.period, start, end: new Date(start.getTime() + delta) });
   }
-  setRange(collectionKey: string, start: Date, end: Date): void {
+  setRange(collectionKey: string, start: Date, end: Date, forcedPeriod?: WeatherPeriod): void {
     const duration = Math.max(1, end.getTime() - start.getTime());
-    const period = (Object.entries(milliseconds).reduce((closest, [name, size]) => Math.abs(size - duration) < Math.abs(milliseconds[closest] - duration) ? name as WeatherPeriod : closest, "day" as WeatherPeriod));
+    const period = forcedPeriod ?? Object.entries(milliseconds).reduce((closest, [name, size]) => Math.abs(size - duration) < Math.abs(milliseconds[closest] - duration) ? name as WeatherPeriod : closest, "day" as WeatherPeriod);
     this.publish(collectionKey, { period, start: new Date(start), end: new Date(end) });
   }
   subscribe(collectionKey: string, listener: PeriodListener): () => void {
