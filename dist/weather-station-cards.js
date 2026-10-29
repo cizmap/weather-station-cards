@@ -83,6 +83,14 @@ function historyPoints(samples) {
     return Number.isFinite(value) && typeof seconds === "number" ? [{ time: seconds * 1e3, value }] : [];
   });
 }
+function windRoseBins(points, binCount = 8) {
+  const bins = Array(binCount).fill(0);
+  for (const point of points) {
+    const heading = (point.value % 360 + 360) % 360;
+    bins[Math.round(heading / (360 / binCount)) % binCount] += 1;
+  }
+  return bins;
+}
 function rainBars(points) {
   const grouped = /* @__PURE__ */ new Map();
   for (const point of points) {
@@ -375,27 +383,127 @@ var WeatherStationWindCompass = class extends HTMLElement {
     const title = document.createElement("div");
     title.className = "title";
     title.textContent = this.config?.title ?? "Vent";
-    const compass = document.createElement("div");
-    compass.className = "compass";
+    const compass2 = document.createElement("div");
+    compass2.className = "compass";
     const arrow = document.createElement("div");
     arrow.className = "arrow";
     arrow.style.transform = `rotate(${Number.isFinite(direction) ? direction : 0}deg)`;
-    compass.append(arrow);
+    compass2.append(arrow);
     const center = document.createElement("div");
     center.className = "center";
     center.textContent = Number.isFinite(direction) ? `${Math.round(direction)}\xB0
 ${cardinal(direction)}` : "\u2014";
-    compass.append(center);
+    compass2.append(center);
     const details = document.createElement("div");
     details.className = "details";
     details.textContent = `${speed?.state ?? "\u2014"} ${speed?.attributes.unit_of_measurement ?? "km/h"}  \xB7  rafales ${gust?.state ?? "\u2014"} ${gust?.attributes.unit_of_measurement ?? "km/h"}`;
     const style = document.createElement("style");
     style.textContent = ":host{display:block}ha-card{padding:16px;text-align:center}.title{color:var(--secondary-text-color);text-align:left}.compass{width:150px;height:150px;border:1px solid var(--divider-color);border-radius:50%;margin:12px auto;position:relative;background:radial-gradient(circle,transparent 58%,color-mix(in srgb,var(--primary-color) 12%,transparent) 59%,transparent 61%)}.arrow{position:absolute;top:18px;left:70px;width:10px;height:57px;background:var(--primary-color);clip-path:polygon(50% 0,100% 25%,65% 25%,65% 100%,35% 100%,35% 25%,0 25%);transform-origin:5px 57px}.center{position:absolute;inset:50px 0 auto;white-space:pre-line;font-size:1.1rem;font-weight:700}.details{color:var(--secondary-text-color);font-size:.9rem}";
-    card.append(title, compass, details);
+    card.append(title, compass2, details);
     root.append(style, card);
   }
 };
 if (!customElements.get("weather-station-wind-compass")) customElements.define("weather-station-wind-compass", WeatherStationWindCompass);
+
+// src/weather-station-wind-rose.ts
+var labels5 = { day: "24 h", week: "7 jours", month: "31 jours", year: "1 an" };
+var compass = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+var WeatherStationWindRose = class extends HTMLElement {
+  config;
+  hassValue;
+  bins = [];
+  period = "day";
+  unsub;
+  loading = false;
+  set hass(value) {
+    this.hassValue = value;
+    void this.refresh();
+  }
+  setConfig(config) {
+    if (!config.entity) throw new Error("entity is required");
+    this.config = config;
+    this.unsub?.();
+    this.unsub = weatherPeriodStore.subscribe(config.collection_key ?? "default", (p) => {
+      this.period = p;
+      void this.refresh();
+    });
+  }
+  disconnectedCallback() {
+    this.unsub?.();
+  }
+  getCardSize() {
+    return 3;
+  }
+  async refresh() {
+    if (!this.hassValue || !this.config || this.loading) return;
+    this.loading = true;
+    this.render();
+    try {
+      const h = await this.hassValue.callWS({ type: "history/history_during_period", start_time: periodStart(this.period).toISOString(), end_time: (/* @__PURE__ */ new Date()).toISOString(), entity_ids: [this.config.entity], minimal_response: true, no_attributes: true });
+      this.bins = windRoseBins(historyPoints(h[this.config.entity] ?? []));
+    } catch {
+      this.bins = [];
+    } finally {
+      this.loading = false;
+      this.render();
+    }
+  }
+  render() {
+    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    root.replaceChildren();
+    const card = document.createElement("ha-card"), title = document.createElement("div");
+    title.className = "title";
+    title.textContent = `${this.config?.title ?? "Rose des vents"} \xB7 ${labels5[this.period]}`;
+    card.append(title, this.svg());
+    const style = document.createElement("style");
+    style.textContent = ":host{display:block}ha-card{padding:16px}.title{color:var(--secondary-text-color);font-size:.9rem}svg{display:block;width:100%;height:210px}.axis{stroke:var(--divider-color);stroke-width:1}.petal{stroke:#26a69a;stroke-width:18;stroke-linecap:round}.label{fill:var(--secondary-text-color);font-size:12px;text-anchor:middle}.empty{fill:var(--secondary-text-color);font-size:14px}";
+    root.append(style, card);
+  }
+  svg() {
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 240 210");
+    if (this.loading || !this.bins.some(Boolean)) {
+      const t = document.createElementNS(s.namespaceURI, "text");
+      t.setAttribute("x", "120");
+      t.setAttribute("y", "105");
+      t.setAttribute("class", "empty");
+      t.textContent = this.loading ? "Chargement\u2026" : "Historique de vent indisponible";
+      s.append(t);
+      return s;
+    }
+    const cx = 120, cy = 110, max = Math.max(...this.bins, 1);
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4 - Math.PI / 2, outer = 75, r = 18 + this.bins[i] / max * 57;
+      const axis = document.createElementNS(s.namespaceURI, "line");
+      axis.setAttribute("x1", String(cx));
+      axis.setAttribute("y1", String(cy));
+      axis.setAttribute("x2", String(cx + Math.cos(a) * outer));
+      axis.setAttribute("y2", String(cy + Math.sin(a) * outer));
+      axis.setAttribute("class", "axis");
+      s.append(axis);
+      if (this.bins[i]) {
+        const p = document.createElementNS(s.namespaceURI, "line");
+        p.setAttribute("x1", String(cx + Math.cos(a) * 12));
+        p.setAttribute("y1", String(cy + Math.sin(a) * 12));
+        p.setAttribute("x2", String(cx + Math.cos(a) * r));
+        p.setAttribute("y2", String(cy + Math.sin(a) * r));
+        p.setAttribute("class", "petal");
+        const tt = document.createElementNS(s.namespaceURI, "title");
+        tt.textContent = `${compass[i]}: ${this.bins[i]} relev\xE9s`;
+        p.append(tt);
+        s.append(p);
+      }
+      const l = document.createElementNS(s.namespaceURI, "text");
+      l.setAttribute("x", String(cx + Math.cos(a) * 95));
+      l.setAttribute("y", String(cy + Math.sin(a) * 95 + 4));
+      l.setAttribute("class", "label");
+      l.textContent = compass[i];
+      s.append(l);
+    }
+    return s;
+  }
+};
+if (!customElements.get("weather-station-wind-rose")) customElements.define("weather-station-wind-rose", WeatherStationWindRose);
 
 // src/index.ts
 var cards = [
@@ -403,7 +511,8 @@ var cards = [
   { type: "weather-station-chart", name: "Weather Station Chart", description: "Plots a weather-station sensor over the shared period." },
   { type: "weather-station-rain-summary", name: "Weather Station Rain Summary", description: "Shows rainfall total for the selected shared period." },
   { type: "weather-station-rain-chart", name: "Weather Station Rain Chart", description: "Displays daily rainfall bars for the shared period." },
-  { type: "weather-station-wind-compass", name: "Weather Station Wind Compass", description: "Shows the current wind direction, speed and gusts." }
+  { type: "weather-station-wind-compass", name: "Weather Station Wind Compass", description: "Shows the current wind direction, speed and gusts." },
+  { type: "weather-station-wind-rose", name: "Weather Station Wind Rose", description: "Shows wind-direction frequency over the shared period." }
 ];
 window.customCards = window.customCards ?? [];
 for (const card of cards) {

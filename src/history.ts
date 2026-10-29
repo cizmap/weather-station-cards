@@ -25,6 +25,15 @@ export interface RainBar {
   value: number;
 }
 
+export function windRoseBins(points: HistoryPoint[], binCount = 8): number[] {
+  const bins = Array<number>(binCount).fill(0);
+  for (const point of points) {
+    const heading = ((point.value % 360) + 360) % 360;
+    bins[Math.round(heading / (360 / binCount)) % binCount] += 1;
+  }
+  return bins;
+}
+
 export function rainBars(points: HistoryPoint[]): RainBar[] {
   const grouped = new Map<string, RainBar>();
   for (const point of points) {
