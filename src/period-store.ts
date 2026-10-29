@@ -48,7 +48,14 @@ export class PeriodStore {
     if (period === "month") start.setUTCDate(1);
     if (period === "quarter") { start.setUTCMonth(Math.floor(start.getUTCMonth() / 3) * 3, 1); }
     if (period === "year") { start.setUTCMonth(0, 1); }
-    return { period, start, end: endCopy };
+    const calendarEnd = new Date(start);
+    if (period === "day") calendarEnd.setUTCDate(calendarEnd.getUTCDate() + 1);
+    if (period === "week") calendarEnd.setUTCDate(calendarEnd.getUTCDate() + 7);
+    if (period === "month") calendarEnd.setUTCMonth(calendarEnd.getUTCMonth() + 1);
+    if (period === "quarter") calendarEnd.setUTCMonth(calendarEnd.getUTCMonth() + 3);
+    if (period === "year") calendarEnd.setUTCFullYear(calendarEnd.getUTCFullYear() + 1);
+    calendarEnd.setTime(calendarEnd.getTime() - 1);
+    return { period, start, end: calendarEnd };
   }
   private publish(collectionKey: string, selection: PeriodSelection): void { this.selections.set(collectionKey, selection); for(const listener of this.listeners.get(collectionKey)??[])listener(selection.period); for(const listener of this.selectionListeners.get(collectionKey)??[])listener(this.getSelection(collectionKey)); }
 }

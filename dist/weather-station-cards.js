@@ -66,7 +66,14 @@ var PeriodStore = class {
     if (period === "year") {
       start.setUTCMonth(0, 1);
     }
-    return { period, start, end: endCopy };
+    const calendarEnd = new Date(start);
+    if (period === "day") calendarEnd.setUTCDate(calendarEnd.getUTCDate() + 1);
+    if (period === "week") calendarEnd.setUTCDate(calendarEnd.getUTCDate() + 7);
+    if (period === "month") calendarEnd.setUTCMonth(calendarEnd.getUTCMonth() + 1);
+    if (period === "quarter") calendarEnd.setUTCMonth(calendarEnd.getUTCMonth() + 3);
+    if (period === "year") calendarEnd.setUTCFullYear(calendarEnd.getUTCFullYear() + 1);
+    calendarEnd.setTime(calendarEnd.getTime() - 1);
+    return { period, start, end: calendarEnd };
   }
   publish(collectionKey, selection) {
     this.selections.set(collectionKey, selection);

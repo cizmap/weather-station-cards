@@ -13,6 +13,14 @@ describe("PeriodStore", () => {
     expect(store.getPeriod("station-jardin")).toBe("week");
   });
 
+  it("uses the complete Monday-to-Sunday calendar week", () => {
+    const store = new PeriodStore(() => new Date("2026-10-29T12:00:00.000Z"));
+    store.setPeriod("station-jardin", "week");
+    const selection = store.getSelection("station-jardin");
+    expect(selection.start.toISOString()).toBe("2026-10-26T00:00:00.000Z");
+    expect(selection.end.toISOString()).toBe("2026-11-01T23:59:59.999Z");
+  });
+
   it("preserves the requested weekly scale for a partial current week", () => {
     const store = new PeriodStore(() => new Date("2026-10-29T12:00:00.000Z"));
     store.setRange("station-jardin", new Date("2026-10-26T00:00:00.000Z"), new Date("2026-10-29T12:00:00.000Z"), "week");
